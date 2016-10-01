@@ -15,6 +15,7 @@ CommonJS 并没有对 JavaScript 进行语法改造，而是引入了两个东�
 
 CommonJS 中，你所创建的每一个文件都是一个模块。你可以通过 module.exports 导出对外的变量或接口，通过 require() 来导入其他模块的输出到当前模块作用域中
 
+
 ```javascript
 // moduleA.js
 module.exports = function( value ){
