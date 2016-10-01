@@ -1,0 +1,235 @@
+# 第二课 模块化 JavaScript
+
+## CommonJS 简介
+
+CommonJS 规范是为了解决 JavaScript 的作用域问题而定义的模块形式，可以使每个模块它自身的命名空间中执行。该规范的主要内容是，模块必须通过 module.exports 导出对外的变量或接口，通过 require() 来导入其他模块的输出到当前模块作用域中。
+
+[[译]JavaScript ES6模块指南](https://segmentfault.com/a/1190000004100661)
+
+在之前的 ES 版本，由于有且只有一个全局的命名空间。定义一个函数或者声明一个变量，实际上会给全局对象添加一个属性，所以我们的解决方案就是使用自调用闭包。
+
+CommonJS 并没有对 JavaScript 进行语法改造，而是引入了两个东西：
+
++ require
++ module.exports
+
+CommonJS 中，你所创建的每一个文件都是一个模块。你可以通过 module.exports 导出对外的变量或接口，通过 require() 来导入其他模块的输出到当前模块作用域中
+
+```javascript
+// moduleA.js
+module.exports = function( value ){
+    return value * 2;
+}
+
+// moduleB.js
+var multiplyBy2 = require('./moduleA');
+var result = multiplyBy2(4);
+```
+>[CommonJS 规范](http://zhaoda.net/webpack-handbook/commonjs.html) 
+
+关于相同模块是否会被加载多次，找到一篇比较详细的文章：[Node.js中相同模块是否会被加载多次？](http://blog.zhaojie.me/2011/12/same-node-module-load-multiple-times.html)
+
+由于 node 6.x 版本还不支持 ES6 module，所以用 ES6 语法创建的
+
+```
+// pie.js
+import {pi,e} from "./constants";
+console.log("pie =",pi + e);
+```
+
+我们用 `node pie.js` 来查看结果会报语法错误，所以要改用 `babel-node pie.js` 来看
+
+>babel 命令是用来查看将（es6 语法 -> es5 语法）后的具体细节的。
+>如果一个用 CommonJS 写的模块 A 里 require 了一个模块 B（ES6），那么最外部也要用 `babel-node A` 来执行
+
+命名导出，顾名思义就是把 export 的对象起一个具体的名字，导入时放到 {} 中，ES2015的模块系统支持导出任意数量个具名的变量
+
+```javascript
+//module.js 导出
+export const value = 42;
+//导入 必须加 {}
+import {value} from './module';
+```
+
+默认导出
+
+每一个模块都支持**导出**一个**不具名**的**变量**，这称作『默认导出』：
+
+```javascript
+// hello-world.js es6
+export default function() {}
+ 
+// main.js
+import helloWorld from './hello-world';
+import anotherFunction from './hello-world';
+ 
+helloWorld();
+console.log(helloWorld === anotherFunction);
+```
+等价的CommonJS语法：
+
+```javascript
+// hello.js
+module.exports = function() {}
+ 
+// main.js
+var helloWorld = require('./hello-world');
+var anotherFunction = require('./hello-world');
+ 
+helloWorld();
+console.log(helloWorld === anotherFunction);
+```
+>[[译]JavaScript ES6模块指南](https://segmentfault.com/a/1190000004100661) 
+>**export default** 算是 ES 6 的一个语法
+
+导入这个默认值其实是导入 **CommonJS** 模块的 **default** 属性，即默认导入
+
+>命名导入要加 {}，默认导入能加{}
+
+### ES6 到 CommonJS 的转换过程
+
+自己总结了一下有这么几点：
+
+1. 首先如果代码本身就是 ES5，那么运行 babel xxx.js 是不会有任何变化的
+2. 如果代码是 ES6，那么运行 babel xxx.js 它会显示转换后的 CommonJS 代码，通过对代码的研究发现，除了对 import/export 做必要的修改外，还为模块添加了一个 __esModule 属性（bool），设为 true 标记它原本是一个 ES6 模块
+
+## ES6 和 CommonJS 兼容性
+
+ES6 和 CommonJS 模块之间最大的差别，就在于模块的默认导出是如何工作的，CommonJS 本身并没有默认导出值这个概念。用 require 来加载一个模块会返回这个模块本身。
+
+使用 Babel 对 ES6 -> CommonJS 的核心过程，通过 __esModule 属性来检查一个模块是不是一个 ES6 模块：
+
+```javascript
+function _interopRequireDefault(obj) {
+  return obj.__esModule ? obj : { default: obj };
+}
+```
+>因此只有 ES 6 转换而来的 CommonJS 才会有 default 属性 
+
+所以 import fs 真正访问的其实是模块的 default 属性
+
+```javascript
+import fs from "fs";
+// Same as: require("fs").default
+fs.readFileSync("package.json", "utf8");
+```
+
+通配符
+
+```javascript
+function _interopRequireWildcard(obj) { 
+    if (obj && obj.__esModule) { 
+        return obj; 
+    } else { 
+        var newObj = {}; 
+        if (obj != null) { 
+            for (var key in obj) { 
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                    newObj[key] = obj[key];
+                }     
+            } 
+        } 
+        newObj.default = obj; 
+        return newObj; 
+    } 
+}
+```
+使用通配符导入，相当于把 obj 中遍历了一遍，然后传递给新对象，将新对象的 default 属性设置为 obj。
+
+使用*标记，在一条命令中导入一个模块中所有变量的方法。这样一来，被导入模块中所有导出的变量都会变成它的属性，默认导出的变量则会被置于 default 属性中
+
+>`import * as foo from` 和 `import foo from` 的区别。后者仅仅会导入默认导出的变量，而前者则会在一个对象中导入所有
+
+## 使用 Webpack 打包
+
+Webpack 是德国开发者 Tobias Koppers 开发的模块加载器兼打包工具，在webpack中，它能把各种资源，例如JS（含JSX）、coffee、样式（含less/sass）、图片等都作为模块来使用和处理。
+
+>[webpack入坑之旅](http://guowenfh.github.io/2016/03/24/vue-webpack-01-base/)
+
+我们来看看 webpack 支持哪些功能特性：
+
+1. 支持 CommonJS 和 AMD 模块，意思也就是我们基本可以无痛迁移旧项目。
+2. 支持模块加载器和插件机制，可对模块灵活定制。特别是我最爱的 babel-loader，有效支持 ES6。
+3. 可以通过配置，打包成多个文件。有效利用浏览器的缓存功能提升性能。
+4. 将样式文件和图片等静态资源也可视为模块进行打包。配合loader加载器，可以支持 sass，less 等 CSS 预处理器。
+5. 内置有source map，即使打包在一起依旧方便调试。
+
+看完上面这些，可以想象它就是一个前端工具，可以让我们进行各种模块加载，预处理后，再打包。之前我们对这些的处理是放在 grunt 或 gulp 等前端自动化工具中。有了 webpack，我们无需借助自动化工具对模块进行各种处理，让我们工具的任务分的更加清晰。
+
+我们看一下官方对 webpack 理解的图。
+
+![](http://ww2.sinaimg.cn/large/7853084cjw1f8c66c2d35j210s0hlack.jpg)
+
+任何静态资源都可以视作模块，然后模块之间也可以相互依赖，通过 webpack 对模块进行处理后，可以打包成我们想要的静态资源。
+
+既然已经大致知道为什么我们要使用 webpack 了，我们接下来就开始使用 webpack 吧！
+
+我们来打包下面的 **pie.js**
+
+```javascript
+let {pi,e} =  require("./constants");
+console.log("pie =",pi + e);
+```
+注意观察，我们在 pie.js 中导入 constants.js，而使用 webpack 打包的结果（如果存在嵌套导入）会将它们全部输出到一个文件中。
+
+语法：
+
+```
+webpack pie.js pie-bundle.js --module-bind "js=babel"
+```
+>--module-bind "js=babel" 表示用 Babel 来转译扩展名为 .js 的文件
+
+打包后的结果会输出到 pie-bundle.js 中，通过观察，我们发现这是一个包含闭包（函数）的数组，每个闭包分别对应着我们不同的模块。
+
+### webpackBootstrap 的工作原理
+
+它的核心是使用了 `__webpack_require__(moduleId)` 函数，所谓的 **moduleId** 其实是 Webpack 的内部模块 id，也就是模块在 modules 数组中的位置下标。
+
+>先加载的在排在前面，比如 moduleB require 了 moduleA，那么最后 webpack 打包后的 modules 数组中 moduleB 的索引就是 0，moduleA 为 1
+
+```javascript
+var installedModules = {};
+
+// require 函数
+function __webpack_require__(moduleId) {
+
+  // 检查模块是否在缓存中
+  if(installedModules[moduleId])
+    return installedModules[moduleId].exports;
+
+  // 新建一个模块（并将其放入缓存中）
+  var module = installedModules[moduleId] = {
+    exports: {},
+    id: moduleId,
+    loaded: false
+  };
+
+  // 执行模块函数
+  modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+
+  // 返回 module 的 exports 对象
+  return module.exports;
+}
+```
+重点关注执行函数
+
+call() 通常在特定作用域中调用函数，实际等于设置函数体内的 this 对象值，它接收两个参数，一个在其中运行函数的作用域，另一个是传递给函数的参数（可以多个）
+
+```javascript
+modules[moduleId].call(
+  // `this` 是 module.exports
+  module.exports,
+  // 让 `module` 在模块代码中能被引用
+  module,
+  // 让 `exports` 在模块代码中能被引用
+  module.exports,
+  // 让当前模块可以递归引入子模块
+  __webpack_require__
+);
+```
+最后一步的 __webpack_require__(0) 其实就是从第一个模块（pie.js 作为入口）开始载入
+
+```javascript
+// Load entry module and return exports
+return __webpack_require__(0);
+```
